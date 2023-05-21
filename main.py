@@ -1,6 +1,9 @@
-import numpy as np
 import matplotlib.pyplot as plt
+# Importing the required libraries
+import numpy as np
+from scipy import signal as sg
 from scipy.signal import hilbert
+
 
 # Function to generate an MSK signal given a bit sequence, sample rate, bit rate, and carrier frequency
 def generate_msk_signal(bit_sequence, sample_rate, bit_rate, carrier_freq):
@@ -88,20 +91,6 @@ def generate_ofdm_signal(amplitudes_and_phase_shifts, time_samples, frequencies)
         ofdm_signal += amplitudes_and_phase_shifts[k] * np.exp(1j * 2 * np.pi * frequencies[k] * time_samples)
     return ofdm_signal
 
-
-# Generate the OFDM signal using the optimized amplitudes and phase shifts
-ofdm_signal = generate_ofdm_signal(amplitudes_and_phase_shifts, time_samples, frequencies)
-
-# Calculate the mean squared error between the MSK signal and the generated OFDM signal
-mse = objective_function(msk_signal, ofdm_signal)
-
-# Compare the mean squared error with a threshold value
-threshold = 1e-6
-if mse < threshold:
-    print("The output values are valid. Mean Squared Error: ", mse)
-else:
-    print("The output values may not be valid. Mean Squared Error: ", mse)
-
 # Generate the OFDM signal using the optimized amplitudes and phase shifts
 ofdm_signal = generate_ofdm_signal(amplitudes_and_phase_shifts, time_samples, frequencies)
 
@@ -152,31 +141,38 @@ plt.legend()
 plt.tight_layout()
 plt.show()
 
+
+# Define the demodulate_msk function
 def demodulate_msk(signal, sample_rate, bit_rate):
     # Hilbert Transform to get the analytic signal
     analytic_signal = hilbert(signal)
+    print('Analytic signal calculated')
 
     # Low Pass Filter to remove high frequency noise
-    from scipy.signal import butter, lfilter
     nyq_rate = sample_rate / 2.0
     width = 0.1/nyq_rate
     ripple_db = 60.0
-    N, beta = signal.kaiserord(ripple_db, width)
+    N, beta = sg.kaiserord(ripple_db, width)  # Here, use sg instead of signal
     cutoff_hz = bit_rate / 2.0
-    taps = signal.firwin(N, cutoff_hz/nyq_rate, window=('kaiser', beta))
-    filtered_signal = lfilter(taps, 1.0, np.real(analytic_signal))
+    taps = sg.firwin(N, cutoff_hz/nyq_rate, window=('kaiser', beta))  # Here, use sg instead of signal
+    filtered_signal = sg.lfilter(taps, 1.0, np.real(analytic_signal))  # Here, use sg instead of signal
+    print('Signal filtered with Low Pass Filter')
 
     # Differentiate Phase to get the original bits
     phase = np.unwrap(np.angle(filtered_signal))
     differentiated_phase = np.diff(phase)
+    print('Phase of the signal differentiated')
 
     # Resample at bit intervals
     resampled_phase = differentiated_phase[::int(sample_rate/bit_rate)]
+    print('Phase-differentiated signal resampled')
 
     # Decode the bits
     decoded_bits = np.array(resampled_phase > 0, dtype=int)
+    print('Bits decoded')
 
     return decoded_bits
+
 
 msk_demodulated_bits = demodulate_msk(np.real(msk_signal), sample_rate, bit_rate)
 ofdm_demodulated_bits = demodulate_msk(np.real(ofdm_signal), sample_rate, bit_rate)
